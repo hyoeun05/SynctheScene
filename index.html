@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sync the Scene (씽크 더 씬) - 2D 픽셀 룸 시뮬레이션 게임</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DungGeunMo&family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #111118;
+      --panel: #24252C;
+      --panel-alpha: rgba(36, 37, 44, 0.88);
+      --panel-dark: rgba(21, 22, 27, 0.92);
+      --text: #F5F1E8;
+      --sub-text: #B7B8C2;
+      --accent: #FFB347;
+      --accent-hover: #FFC070;
+      --border: #3A3B46;
+      --pixel-border: #000;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'DungGeunMo', 'Pretendard', sans-serif;
+      line-height: 1.6;
+      word-break: keep-all;
+      position: relative;
+      min-height: 100vh;
+    }
+
+    /* 픽셀 아트 방 배경 캔버스 */
+    #bgCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -2;
+      object-fit: cover;
+      image-rendering: pixelated;
+      filter: brightness(0.45) saturate(0.9) blur(1px);
+    }
+
+    /* 배경 어둡게 조율하는 오버레이 */
+    .bg-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 50% 40%, rgba(21, 22, 27, 0.4), rgba(13, 14, 18, 0.85));
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Pixel Box UI Styling (투박한 픽셀 테두리) */
+    .pixel-box {
+      background: var(--panel-alpha);
+      border: 4px solid var(--pixel-border);
+      box-shadow: 
+        inset -4px -4px 0px 0px #17181f,
+        inset 4px 4px 0px 0px #3d3e4a,
+        6px 6px 0px 0px rgba(0, 0, 0, 0.6);
+      position: relative;
+    }
+
+    .pixel-box-dark {
+      background: var(--panel-dark);
+      border: 4px solid var(--pixel-border);
+      box-shadow: 
+        inset -4px -4px 0px 0px #0b0c0f,
+        inset 4px 4px 0px 0px #24252c,
+        4px 4px 0px 0px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Navigation Header */
+    header {
+      padding: 20px 0;
+    }
+
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px;
+    }
+
+    .logo {
+      font-size: 24px;
+      color: var(--accent);
+      letter-spacing: 1px;
+      text-shadow: 2px 2px 0px #000;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 20px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--sub-text);
+      text-decoration: none;
+      font-size: 15px;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 60px 0 40px;
+      text-align: center;
+    }
+
+    .hero-card {
+      padding: 48px 24px;
+      backdrop-filter: blur(4px);
+    }
+
+    .hero-badge {
+      display: inline-block;
+      background: #FFB347;
+      color: #15161B;
+      padding: 4px 12px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      box-shadow: 3px 3px 0px #000;
+    }
+
+    .hero-title {
+      font-size: clamp(32px, 5vw, 52px);
+      line-height: 1.25;
+      margin-bottom: 20px;
+      color: #FFF;
+      text-shadow: 3px 3px 0px #000;
+    }
+
+    .hero-title span {
+      color: var(--accent);
+    }
+
+    .hero-subtitle {
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--sub-text);
+      max-width: 680px;
+      margin: 0 auto 32px;
+      line-height: 1.8;
+      font-family: 'Pretendard', sans-serif;
+    }
+
+    .btn-group {
+      display: flex;
+      justify-content: center;
+    }
+
+    /* Pixel Button */
+    .btn-pixel {
+      display: inline-block;
+      padding: 16px 40px;
+      font-size: 20px;
+      font-family: 'DungGeunMo', sans-serif;
+      color: #2A1C05;
+      background-color: var(--accent);
+      text-decoration: none;
+      border: 4px solid #000;
+      box-shadow: 
+        inset -4px -4px 0px 0px #b87b28,
+        inset 4px 4px 0px 0px #ffe19a,
+        5px 5px 0px 0px #000;
+      transition: transform 0.08s, background-color 0.1s;
+      cursor: pointer;
+    }
+
+    .btn-pixel:active {
+      transform: translate(3px, 3px);
+      box-shadow: 
+        inset -4px -4px 0px 0px #b87b28,
+        inset 4px 4px 0px 0px #ffe19a,
+        2px 2px 0px 0px #000;
+    }
+
+    .btn-pixel:hover {
+      background-color: var(--accent-hover);
+    }
+
+    /* Section Styling */
+    .section-title {
+      text-align: center;
+      font-size: 28px;
+      margin-bottom: 36px;
+      color: var(--accent);
+      text-shadow: 2px 2px 0px #000;
+    }
+
+    /* Features Grid */
+    .features {
+      padding: 40px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      padding: 24px;
+    }
+
+    .card-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      display: inline-block;
+    }
+
+    .card-title {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #FFF;
+    }
+
+    .card-desc {
+      font-size: 14px;
+      color: var(--sub-text);
+      line-height: 1.6;
+      font-family: 'Pretendard', sans-serif;
+    }
+
+    /* How to Play Section */
+    .how-to-play {
+      padding: 40px 0 60px;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .step-item {
+      padding: 20px;
+    }
+
+    .step-number {
+      font-size: 13px;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .step-title {
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: #FFF;
+    }
+
+    .step-desc {
+      font-size: 13px;
+      color: var(--sub-text);
+      font-family: 'Pretendard', sans-serif;
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    footer {
+      padding: 30px 0;
+      text-align: center;
+      color: var(--sub-text);
+      font-size: 13px;
+      font-family: 'Pretendard', sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 픽셀 아트 방 배경 랜더링 Canvas -->
+  <canvas id="bgCanvas" width="320" height="240"></canvas>
+  <div class="bg-overlay"></div>
+
+  <!-- Navigation Bar -->
+  <header class="container">
+    <div class="nav pixel-box">
+      <div class="logo">✦ Sync the Scene</div>
+      <ul class="nav-links">
+        <li><a href="#about">소개</a></li>
+        <li><a href="#features">주요 기능</a></li>
+        <li><a href="#how-to-play">플레이 방법</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero container" id="about">
+    <div class="hero-card pixel-box">
+      <span class="hero-badge">2D PIXEL ROOM PHOTOGRAPHY</span>
+      <h1 class="hero-title">목표 공간의 감성을<br><span>그대로 맞춰보세요</span></h1>
+      <p class="hero-subtitle">
+        <strong>Sync the Scene (씽크 더 씬)</strong>은 주어진 목표 사진을 참고해 픽셀 룸을 꾸미고, 조명 방향과 색온도, 초점까지 정밀 조절하여 가장 일치하는 순간을 촬영하는 시각 연출 시뮬레이션 게임입니다[cite: 1].
+      </p>
+      <div class="btn-group">
+        <!-- 단일 게임 실행 버튼 -->
+        <a href="Sync_the_Scene.html" class="btn-pixel">▶ 게임 시작하기</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features container" id="features">
+    <h2 class="section-title">[ 주요 시스템 ]</h2>
+    <div class="grid">
+      
+      <div class="card pixel-box-dark">
+        <div class="card-icon">🛋️</div>
+        <h3 class="card-title">가구 배치 UI</h3>
+        <p class="card-desc">소파, 테이블, 화분, 스탠드, 러그 등을 자율적으로 선택해 방 바닥 공간 위에 자유롭게 드래그해 놓습니다[cite: 1, 2].</p>
+      </div>
+
+      <div class="card pixel-box-dark">
+        <div class="card-icon">💡</div>
+        <h3 class="card-title">조명 & 초점 컨트롤</h3>
+        <p class="card-desc">창문 빛의 방향, 색온도(차가움 ~ 노을빛), 렌즈 초점 아웃포커싱 슬라이더로 분위기를 조절합니다[cite: 1, 2].</p>
+      </div>
+
+      <div class="card pixel-box-dark">
+        <div class="card-icon">🔍</div>
+        <h3 class="card-title">확대 힌트 시스템</h3>
+        <p class="card-desc">스테이지마다 제한된 확인 횟수 안에서 목표 사진을 확대하여 디테일한 위치와 설정을 파악합니다[cite: 1, 2].</p>
+      </div>
+
+      <div class="card pixel-box-dark">
+        <div class="card-icon">📸</div>
+        <h3 class="card-title">일치율 연산 & 피드백</h3>
+        <p class="card-desc">셔터를 누르는 순간 가구의 개수·위치·레이아웃과 조명 설정을 실시간 연산해 피드백을 출력합니다[cite: 1, 2].</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- How To Play Section -->
+  <section class="how-to-play container" id="how-to-play">
+    <h2 class="section-title">[ 플레이 단계 ]</h2>
+    <div class="steps">
+      
+      <div class="step-item pixel-box-dark">
+        <div class="step-number">STEP 01</div>
+        <h3 class="step-title">목표 확인</h3>
+        <p class="step-desc">흐릿한 썸네일을 확인하고 돋보기 아이콘을 눌러 섬세한 특징을 파악합니다[cite: 1, 2].</p>
+      </div>
+
+      <div class="step-item pixel-box-dark">
+        <div class="step-number">STEP 02</div>
+        <h3 class="step-title">가구배치</h3>
+        <p class="step-desc">팔레트에서 알맞은 픽셀 가구를 골라 룸의 올바른 위치로 드래그합니다[cite: 1, 2].</p>
+      </div>
+
+      <div class="step-item pixel-box-dark">
+        <div class="step-number">STEP 03</div>
+        <h3 class="step-title">조명연출</h3>
+        <p class="step-desc">빛의 각도, 분위기 톤, 아웃포커스 값을 슬라이더로 동일하게 조율합니다[cite: 1, 2].</p>
+      </div>
+
+      <div class="step-item pixel-box-dark">
+        <div class="step-number">STEP 04</div>
+        <h3 class="step-title">촬영결과</h3>
+        <p class="step-desc">촬영을 마치고 일치율 점수와 피드백을 확인하여 다음 스테이지로 진행합니다[cite: 1, 2].</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>Sync the Scene — 2D Pixel Room Photography Simulation</p>
+    </div>
+  </footer>
+
+  <!-- Canvas Pixel Art Room Renderer Script -->
+  <script>
+    (function(){
+      const canvas = document.getElementById('bgCanvas');
+      const ctx = canvas.getContext('2d');
+      const W = 320, H = 240, FLOOR_Y = 110;
+      
+      function R(c, x, y, w, h) {
+        ctx.fillStyle = c;
+        ctx.fillRect(Math.round(x), Math.round(y), w, h);
+      }
+
+      function renderBg() {
+        ctx.clearRect(0, 0, W, H);
+        
+        // 벽
+        R('#74647a', 0, 0, W, FLOOR_Y);
+        for(let x = 0; x < W; x += 16) R('#7c6c83', x, 6, 8, FLOOR_Y - 12);
+        R('#4a3d50', 0, 0, W, 6);
+        R('#3d3140', 0, FLOOR_Y - 6, W, 6);
+
+        // 창문 (노을빛 조명)
+        const wx = 116, wy = 18, ww = 88, wh = 62;
+        R('#efe3cc', wx-4, wy-4, ww+8, wh+8);
+        R('#ff9a45', wx, wy, ww, wh);
+        R('#fff6', wx+12, wy+10, 14, 4);
+        R('#efe3cc', wx+ww/2-2, wy, 4, wh); 
+        R('#efe3cc', wx, wy+wh/2-2, ww, 4);
+        R('#a8574b', wx-26, wy-8, 18, wh+22); 
+        R('#a8574b', wx+ww+8, wy-8, 18, wh+22);
+
+        // 바닥
+        for(let row = 0; row < 14; row++) {
+          const y = FLOOR_Y + row * 10;
+          R(row % 2 ? '#9f7146' : '#a97a4c', 0, y, W, 10);
+          R('#7f5a38', 0, y + 9, W, 1);
+        }
+
+        // 창문 광선
+        ctx.fillStyle = 'rgba(255, 205, 140, 0.18)';
+        ctx.beginPath();
+        ctx.moveTo(wx - 20, FLOOR_Y);
+        ctx.lineTo(wx + ww + 20, FLOOR_Y);
+        ctx.lineTo(W, H);
+        ctx.lineTo(40, H);
+        ctx.closePath();
+        ctx.fill();
+
+        // 픽셀 소파
+        const ox = 120, oy = 150;
+        R('#3b2a26', ox+6, oy+37, 5, 3); R('#3b2a26', ox+69, oy+37, 5, 3);
+        R('#7d3f35', ox+6, oy+2, 68, 22);
+        R('#a85a4b', ox+10, oy+6, 29, 16); R('#a85a4b', ox+41, oy+6, 29, 16);
+        R('#6b342c', ox, oy+14, 14, 24); R('#6b342c', ox+66, oy+14, 14, 24);
+        R('#b8665a', ox+12, oy+22, 56, 13);
+
+        // 픽셀 화분
+        const px = 45, py = 170;
+        R('#3f8f4f', px+2, py+8, 8, 6); R('#4fb062', px+7, py, 8, 8);
+        R('#b5623e', px+5, py+28, 12, 12);
+      }
+
+      renderBg();
+    })();
+  </script>
+</body>
+</html>
